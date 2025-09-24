@@ -2,7 +2,7 @@
 medias/
 
 # build output
-assets/
+public/assets/
 dist/
 src/content/
 

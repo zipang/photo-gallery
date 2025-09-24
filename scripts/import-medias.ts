@@ -9,6 +9,7 @@ import pLimit from "p-limit";
 import pThrottle from "p-throttle";
 import os from "os";
 import { SingleBar, Presets } from "cli-progress";
+import type { MediaMetadata, GalleryInfo } from "@lib/types";
 
 // Simple ANSI color functions
 const colors = {
@@ -35,7 +36,7 @@ const CONCURRENCY = os.cpus().length;
 // File locations @see https://bun.com/guides/util/import-meta-dir
 const scriptFolder = import.meta.dir;
 const rootFolder = join(scriptFolder, "..");
-const assetsFolder = join(rootFolder, "assets");
+const assetsFolder = join(rootFolder, "public/assets");
 const contentFolder = join(rootFolder, "src/content/galleries");
 
 // Concurrency limiter for CPU-bound tasks
@@ -89,26 +90,6 @@ export const geocodeCache = {
 };
 // --- End of Cache ---
 
-interface MediaMetadata {
-	fileName: string;
-	originalPath: string;
-	isoDateTime: string;
-	camera: string;
-	lens: string;
-	iso: number;
-	shutterSpeed: string;
-	aperture: string;
-	focalLength: string;
-	gpsCoords: [number, number] | null;
-	location: string;
-}
-
-interface GalleryInfo {
-	name: string;
-	path: string;
-	medias: MediaMetadata[];
-}
-
 /**
  * Main import function
  */
@@ -144,12 +125,14 @@ async function importMedia() {
 		console.log(colors.paint('blue', "Scanning directories and extracting metadata..."));
 		const galleries = await scanDirectory(mediaDir);
 
-		const allMediaTasks = galleries.flatMap(gallery => {
-			const galleryAssetsDir = join(assetsFolder, relative(mediaDir, gallery.path));
+		let destinations = "";
+		const importMediaTasks = galleries.flatMap(gallery => {
+			const galleryAssetsDir = join(assetsFolder, gallery.path);
+			destinations += `Gallery '${gallery.name}' => '${galleryAssetsDir}'\n`;
 			return gallery.medias.map(media => ({ media, galleryAssetsDir }));
 		});
 
-		console.log(colors.paint('blue', `Importing ${allMediaTasks.length} files to gallery assets...`));
+		console.log(colors.paint('blue', `Importing ${importMediaTasks.length} files to gallery assets...`), destinations);
 
 		// Initialize progress bar
 		const progressBar = new SingleBar({
@@ -158,9 +141,9 @@ async function importMedia() {
 			barIncompleteChar: '\u2591',
 			hideCursor: true
 		}, Presets.shades_classic);
-		progressBar.start(allMediaTasks.length, 0);
+		progressBar.start(importMediaTasks.length, 0);
 
-		const processingPromises = allMediaTasks.map(({ media, galleryAssetsDir }) =>
+		const processingPromises = importMediaTasks.map(({ media, galleryAssetsDir }) =>
 			parallel(async () => {
 				await processMediaFile(media, galleryAssetsDir);
 				progressBar.increment();
@@ -171,7 +154,7 @@ async function importMedia() {
 
 		console.log(colors.paint('blue', "Generating markdown files..."));
 		for (const gallery of galleries) {
-			const galleryContentDir = join(contentFolder, relative(mediaDir, gallery.path));
+			const galleryContentDir = join(contentFolder, gallery.path);
 			await generateMarkdown(gallery, galleryContentDir);
 		}
 
@@ -180,7 +163,7 @@ async function importMedia() {
 
 		// Display the generated assets directory tree
 		await buildReport();
-		console.log(colors.paint('green', `${allMediaTasks.length} media files imported in ${elapsed}ms...`))
+		console.log(colors.paint('green', `${importMediaTasks.length} media files imported in ${elapsed}ms...`))
 	} catch (error) {
 		console.error(colors.paint('red', "Error during media import:"), error);
 		process.exit(1);
@@ -197,7 +180,7 @@ async function scanDirectory(dirPath: string, basePath: string = dirPath): Promi
 	const galleries: GalleryInfo[] = [];
 	const galery: GalleryInfo = {
 		name: basename(dirPath),
-		path: dirPath,
+		path: relative(basePath, dirPath),
 		medias: []
 	}
 
