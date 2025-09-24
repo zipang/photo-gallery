@@ -8,6 +8,7 @@ import { fetch } from "bun";
 import pLimit from "p-limit";
 import pThrottle from "p-throttle";
 import os from "os";
+import { SingleBar, Presets } from "cli-progress";
 
 // Simple ANSI color functions
 const colors = {
@@ -30,6 +31,12 @@ const SUPPORTED_VIDEO_FORMATS = ['.mp4', '.webm', '.mov'];
 const VIGNETTE_WIDTH = process.env.VIGNETTE_WIDTH ? parseInt(process.env.VIGNETTE_WIDTH) : 640;
 const JPEG_QUALITY = process.env.JPEG_QUALITY ? parseInt(process.env.JPEG_QUALITY) : 75;
 const CONCURRENCY = os.cpus().length;
+
+// File locations @see https://bun.com/guides/util/import-meta-dir
+const scriptFolder = import.meta.dir;
+const rootFolder = join(scriptFolder, "..");
+const assetsFolder = join(rootFolder, "assets");
+const contentFolder = join(rootFolder, "src/content/galleries");
 
 // Concurrency limiter for CPU-bound tasks
 const parallel = pLimit(CONCURRENCY);
@@ -106,6 +113,7 @@ interface GalleryInfo {
  * Main import function
  */
 async function importMedia() {
+	const start = Date.now();
 	console.log(colors.paint('blue', `Starting media import process with ${CONCURRENCY} parallel tasks...`));
 
 	const mediaDir = process.argv[2] || process.env.MEDIA_DIR;
@@ -117,9 +125,6 @@ async function importMedia() {
 	try {
 		await geocodeCache.load();
 
-		const assetsDir = join(process.cwd(), "assets");
-		const contentDir = join(process.cwd(), "src", "content", "galleries");
-
 		const mediaStat = await stat(mediaDir);
 		if (!mediaStat.isDirectory()) {
 			throw new Error(`Media path ${mediaDir} is not a directory`);
@@ -127,36 +132,55 @@ async function importMedia() {
 
 		console.log(colors.paint('yellow', "Cleaning assets and content directories..."));
 		await Promise.all([
-			rm(assetsDir, { recursive: true, force: true }),
-			rm(contentDir, { recursive: true, force: true })
+			rm(assetsFolder, { recursive: true, force: true }),
+			rm(contentFolder, { recursive: true, force: true })
 		]);
 
 		await Promise.all([
-			mkdir(assetsDir, { recursive: true }),
-			mkdir(contentDir, { recursive: true })
+			mkdir(assetsFolder, { recursive: true }),
+			mkdir(contentFolder, { recursive: true })
 		]);
 
 		console.log(colors.paint('blue', "Scanning directories and extracting metadata..."));
 		const galleries = await scanDirectory(mediaDir);
 
 		const allMediaTasks = galleries.flatMap(gallery => {
-			const galleryAssetsDir = join(assetsDir, relative(mediaDir, gallery.path));
+			const galleryAssetsDir = join(assetsFolder, relative(mediaDir, gallery.path));
 			return gallery.medias.map(media => ({ media, galleryAssetsDir }));
 		});
 
-		console.log(colors.paint('blue', `Processing ${allMediaTasks.length} media files in parallel...`));
+		console.log(colors.paint('blue', `Importing ${allMediaTasks.length} files to gallery assets...`));
+
+		// Initialize progress bar
+		const progressBar = new SingleBar({
+			format: 'Progress: [{bar}] {percentage}% | {value}/{total} media files processed',
+			barCompleteChar: '\u2588',
+			barIncompleteChar: '\u2591',
+			hideCursor: true
+		}, Presets.shades_classic);
+		progressBar.start(allMediaTasks.length, 0);
+
 		const processingPromises = allMediaTasks.map(({ media, galleryAssetsDir }) =>
-			parallel(() => processMediaFile(media, galleryAssetsDir))
+			parallel(async () => {
+				await processMediaFile(media, galleryAssetsDir);
+				progressBar.increment();
+			})
 		);
 		await Promise.all(processingPromises);
+		progressBar.stop();
 
-		console.log(colors.paint('blue', "Generating gallery markdown files..."));
+		console.log(colors.paint('blue', "Generating markdown files..."));
 		for (const gallery of galleries) {
-			const galleryContentDir = join(contentDir, relative(mediaDir, gallery.path));
+			const galleryContentDir = join(contentFolder, relative(mediaDir, gallery.path));
 			await generateMarkdown(gallery, galleryContentDir);
 		}
 
-		console.log(colors.paint('green', "Media import completed successfully!"));
+		const elapsed = Date.now() - start;
+		console.log(colors.paint('green', "Media import + content generation complete!"));
+
+		// Display the generated assets directory tree
+		await buildReport();
+		console.log(colors.paint('green', `${allMediaTasks.length} media files imported in ${elapsed}ms...`))
 	} catch (error) {
 		console.error(colors.paint('red', "Error during media import:"), error);
 		process.exit(1);
@@ -206,6 +230,40 @@ async function scanDirectory(dirPath: string, basePath: string = dirPath): Promi
 
 	return galleries;
 }
+
+/**
+ * Build a tree output of a directory content (similar to the tree command)
+ * @param dirPath 
+ * @param prefix 
+ */
+async function buildTree(dirPath: string, prefix = ""): Promise<string> {
+	const entries = await readdir(dirPath, { withFileTypes: true });
+	const directories = entries.filter(entry => entry.isDirectory()).sort((a, b) => a.name.localeCompare(b.name));
+	const files = entries.filter(entry => entry.isFile()).sort((a, b) => a.name.localeCompare(b.name));
+
+	let result = "";
+	const allItems = [...directories, ...files];
+
+	for (let i = 0; i < allItems.length; i++) {
+		const item = allItems[i];
+		const isLast = i === allItems.length - 1;
+		const currentPrefix = isLast ? "└── " : "├── ";
+		const nextPrefix = isLast ? "    " : "│   ";
+
+		result += `${prefix}${currentPrefix}${item.name}\n`;
+
+		if (item.isDirectory()) {
+			const subDirPath = join(dirPath, item.name);
+			const subTree = await buildTree(subDirPath, prefix + nextPrefix);
+			if (subTree) {
+				result += subTree;
+			}
+		}
+	}
+
+	return result;
+}
+
 
 /**
  * Extract metadata from media file (EXIF data for images)
@@ -353,6 +411,8 @@ async function generateMarkdown(gallery: GalleryInfo, outputDir: string) {
 	await mkdir(outputDir, { recursive: true });
 
 	const mdContent = `---
+name: ${JSON.stringify(gallery.name)}
+path: ${JSON.stringify(gallery.path)}
 medias: ${JSON.stringify(gallery.medias, null, 2)}
 ---
 
@@ -360,6 +420,25 @@ medias: ${JSON.stringify(gallery.medias, null, 2)}
 `;
 
 	await Bun.write(mdFilePath, mdContent);
+}
+
+/**
+ * Display a tree structure of the content directory
+ */
+async function buildReport() {
+	console.log(colors.paint('blue', "\nGenerated markdown content:"));
+
+	try {
+		const tree = await buildTree(contentFolder);
+		if (tree) {
+			console.log("src/content/galleries/");
+			console.log(tree);
+		} else {
+			console.log(colors.paint('yellow', "<Empty>"));
+		}
+	} catch (error) {
+		console.log(colors.paint('yellow', "Could not display assets tree:"), error);
+	}
 }
 
 if (import.meta.main) {
