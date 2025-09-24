@@ -1,3 +1,6 @@
+# import folder
+medias/
+
 # build output
 assets/
 dist/
@@ -25,6 +28,9 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
 # AI coding tools
 .qodo/
 .crush/
+.qwen/
+.specify/
