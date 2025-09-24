@@ -14,14 +14,14 @@ export class Media {
 		// Extract the base name without extension
 		const baseName = this.metadata.fileName.replace(/\.(jpg|jpeg|png|webp)$/i, "");
 		const vignetteFileName = `${baseName}_vignette.jpg`;
-		return `${this.gallery.path}/${vignetteFileName}`;
+		return `/assets/${this.gallery.path}/${vignetteFileName}`;
 	}
 
 	get fullSizeUrl(): string {
 		// Extract the base name without extension
 		const baseName = this.metadata.fileName.replace(/\.(jpg|jpeg|png|webp)$/i, "");
 		const fullSizeFileName = `${baseName}.jpg`;
-		return `${this.gallery.path}/_fullsize/${fullSizeFileName}`;
+		return `/assets/${this.gallery.path}/_fullsize/${fullSizeFileName}`;
 	}
 
 	get displayName(): string {

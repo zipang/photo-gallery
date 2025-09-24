@@ -1,74 +1,80 @@
 ---
 interface Props {
-  displayName: string;
-  imageUrl: string;
-  border?: number;
-  borderColor?: string;
-  fullSizeUrl?: string;
+	displayName: string;
+	imageUrl: string;
+	border?: number;
+	borderColor?: string;
+	fullSizeUrl?: string;
 }
 
-const { displayName, imageUrl, border = 0, borderColor = 'var(--color-border)', fullSizeUrl = imageUrl } = Astro.props;
+const {
+	displayName,
+	imageUrl,
+	border = 0,
+	borderColor = "var(--color-border)",
+	fullSizeUrl = imageUrl,
+} = Astro.props;
 ---
 
 <div class="vignette">
-  <a href={fullSizeUrl} class="vignette-link" data-lightbox="gallery">
-    <img 
-      src={imageUrl} 
-      alt={displayName} 
-      class="vignette-image"
-      style={border > 0 ? `border: ${border}px solid ${borderColor}` : ''}
-    />
-    <div class="vignette-overlay">
-      <span class="vignette-label">{displayName}</span>
-    </div>
-  </a>
+	<a href={fullSizeUrl} class="vignette-link" data-lightbox="gallery">
+		<img
+			src={imageUrl}
+			alt={displayName}
+			class="vignette-image"
+			style={border > 0 ? `border: ${border}px solid ${borderColor}` : ""}
+		/>
+		<div class="vignette-overlay">
+			<span class="vignette-label">{displayName}</span>
+		</div>
+	</a>
 </div>
 
 <style>
-.vignette {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-sm);
-  transition: var(--transition);
-}
+	.vignette {
+		position: relative;
+		overflow: hidden;
+		border-radius: var(--border-radius);
+		box-shadow: var(--shadow-sm);
+		transition: var(--transition);
+	}
 
-.vignette:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
+	.vignette:hover {
+		box-shadow: var(--shadow-md);
+		transform: translateY(-2px);
+	}
 
-.vignette-link {
-  display: block;
-  position: relative;
-}
+	.vignette-link {
+		display: block;
+		position: relative;
+	}
 
-.vignette-image {
-  width: 100%;
-  height: auto;
-  display: block;
-  transition: var(--transition);
-}
+	.vignette-image {
+		width: 100%;
+		height: auto;
+		display: block;
+		transition: var(--transition);
+	}
 
-.vignette-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-  padding: var(--spacing-sm);
-  opacity: 0;
-  transition: var(--transition);
-}
+	.vignette-overlay {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+		padding: var(--spacing-sm);
+		opacity: 0;
+		transition: var(--transition);
+	}
 
-.vignette:hover .vignette-overlay {
-  opacity: 1;
-}
+	.vignette:hover .vignette-overlay {
+		opacity: 1;
+	}
 
-.vignette-label {
-  color: white;
-  font-size: var(--font-size-small);
-  font-weight: 500;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-}
+	.vignette-label {
+		color: white;
+		font-size: var(--font-size-small);
+		font-weight: 500;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+	}
 </style>

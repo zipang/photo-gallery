@@ -1,0 +1,38 @@
+---
+import BaseLayout from "@layouts/BaseLayout.astro";
+import Breadcrumb from "@components/Breadcrumb.astro";
+import GalleryView from "@components/GalleryView.astro";
+import { getCollection } from "astro:content";
+
+export async function getStaticPaths() {
+	const galleries = await getCollection("galleries");
+
+	return galleries.map((entry) => {
+		return {
+			params: { slug: entry.data.path },
+			props: { gallery: entry.data },
+		};
+	});
+}
+
+// Get the slug from the URL parameters
+const { slug = "" } = Astro.params;
+const { gallery } = Astro.props;
+
+if (!gallery) {
+	return Astro.redirect("/404");
+}
+---
+
+<BaseLayout title={gallery.name}>
+	<div class="page-content">
+		<Breadcrumb path={gallery.path} />
+		<GalleryView gallery={gallery} />
+	</div>
+</BaseLayout>
+
+<style>
+	.page-content {
+		padding: var(--spacing-lg) 0;
+	}
+</style>
