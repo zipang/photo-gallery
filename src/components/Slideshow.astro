@@ -1,0 +1,28 @@
+---
+
+---
+
+<script>
+	// Initialize SimpleLightbox for the gallery
+	document.addEventListener("astro:page-load", () => {
+		const lightbox = new SimpleLightbox(".vignette-link", {
+			captions: true,
+			captionsData: "alt",
+			captionPosition: "bottom",
+			closeText: "Close",
+			enableKeyboard: true,
+			history: false,
+			loop: true,
+			navText: ["&larr;", "&rarr;"],
+			overlay: true,
+			overlayOpacity: 0.8,
+			spinner: true,
+			swipeTolerance: 50,
+			widthRatio: 0.9,
+			heightRatio: 0.9,
+		});
+
+		// Refresh lightbox when new images are loaded
+		lightbox.refresh();
+	});
+</script>
