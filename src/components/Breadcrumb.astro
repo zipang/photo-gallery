@@ -6,15 +6,22 @@ interface Props {
 
 const { path, separator = ">" } = Astro.props;
 
-const parts = path.split("/").map((part) => ({ label: part, href: part }));
+const parts = path.split("/");
+let parent = { href: "/galleries", label: "Galleries" };
+let breadcrumbs = [parent];
+let part;
+
+while ((part = parts.shift())) {
+	breadcrumbs.push((parent = { label: part, href: parent.href + "/" + encodeURIComponent(part) }));
+}
 ---
 
 <nav aria-label="Breadcrumb" class="breadcrumb">
 	<ol class="breadcrumb-list">
 		{
-			parts.map(({ label, href }, index) => (
+			breadcrumbs.map(({ label, href }, index) => (
 				<li class="breadcrumb-item">
-					{index < parts.length - 1 ? (
+					{index < breadcrumbs.length - 1 ? (
 						<a href={href} class="breadcrumb-link">
 							{label}
 						</a>
@@ -23,50 +30,50 @@ const parts = path.split("/").map((part) => ({ label: part, href: part }));
 							{label}
 						</span>
 					)}
-					{index < parts.length - 1 && <span class="breadcrumb-separator">{separator}</span>}
+					{index < breadcrumbs.length - 1 && <span class="breadcrumb-separator">{separator}</span>}
 				</li>
 			))
 		}
 	</ol>
+
+	<style>
+		.breadcrumb {
+			margin-bottom: var(--spacing-md);
+		}
+
+		.breadcrumb-list {
+			display: flex;
+			flex-wrap: wrap;
+			list-style: none;
+			padding: 0;
+			margin: 0;
+			gap: var(--spacing-xs);
+		}
+
+		.breadcrumb-item {
+			display: flex;
+			align-items: center;
+		}
+
+		.breadcrumb-link {
+			color: var(--color-primary);
+			text-decoration: none;
+			font-weight: 500;
+		}
+
+		.breadcrumb-link:hover {
+			color: var(--color-primary-hover);
+			text-decoration: underline;
+		}
+
+		.breadcrumb-current {
+			color: var(--color-text-secondary);
+			font-weight: 500;
+		}
+
+		.breadcrumb-separator {
+			color: var(--color-text-secondary);
+			margin: 0 var(--spacing-xs);
+		}
+	</style>
 </nav>
-
-<style>
-	.breadcrumb {
-		margin-bottom: var(--spacing-md);
-	}
-
-	.breadcrumb-list {
-		display: flex;
-		flex-wrap: wrap;
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		gap: var(--spacing-xs);
-	}
-
-	.breadcrumb-item {
-		display: flex;
-		align-items: center;
-	}
-
-	.breadcrumb-link {
-		color: var(--color-primary);
-		text-decoration: none;
-		font-weight: 500;
-	}
-
-	.breadcrumb-link:hover {
-		color: var(--color-primary-hover);
-		text-decoration: underline;
-	}
-
-	.breadcrumb-current {
-		color: var(--color-text-secondary);
-		font-weight: 500;
-	}
-
-	.breadcrumb-separator {
-		color: var(--color-text-secondary);
-		margin: 0 var(--spacing-xs);
-	}
-</style>
