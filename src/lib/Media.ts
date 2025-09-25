@@ -49,4 +49,17 @@ export class Media {
 	get location(): string {
 		return this.metadata.location;
 	}
+
+	get width(): number {
+		return this.metadata.width;
+	}
+
+	get height(): number {
+		return this.metadata.height;
+	}
+
+	get orientation(): "portrait" | "landscape" {
+		return this.metadata.height > this.metadata.width ? "portrait" : "landscape";
+	}
+
 }

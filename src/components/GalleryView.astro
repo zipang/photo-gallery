@@ -16,15 +16,7 @@ const gallery = new Gallery(Astro.props.gallery);
 	</div>
 
 	<div class="gallery-grid">
-		{
-			gallery.medias.map((media) => (
-				<Vignette
-					displayName={media.displayName}
-					imageUrl={media.vignetteUrl}
-					fullSizeUrl={media.fullSizeUrl}
-				/>
-			))
-		}
+		{gallery.medias.map((media) => <Vignette media={media} />)}
 	</div>
 </div>
 
@@ -50,7 +42,7 @@ const gallery = new Gallery(Astro.props.gallery);
 	.gallery-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-		gap: var(--spacing-md);
+		gap: var(--spacing-sm);
 		margin-top: var(--spacing-md);
 	}
 

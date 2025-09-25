@@ -132,7 +132,7 @@ async function importMedia() {
 			return gallery.medias.map(media => ({ media, galleryAssetsDir }));
 		});
 
-		console.log(colors.paint('blue', `Importing ${importMediaTasks.length} files to gallery assets...`), destinations);
+		console.log(colors.paint('blue', `Importing ${importMediaTasks.length} files to gallery assets...\n`), destinations);
 
 		// Initialize progress bar
 		const progressBar = new SingleBar({
@@ -145,7 +145,7 @@ async function importMedia() {
 
 		const processingPromises = importMediaTasks.map(({ media, galleryAssetsDir }) =>
 			parallel(async () => {
-				await processMediaFile(media, galleryAssetsDir);
+				await importMediaFile(media, galleryAssetsDir);
 				progressBar.increment();
 			})
 		);
@@ -162,7 +162,8 @@ async function importMedia() {
 		console.log(colors.paint('green', "Media import + content generation complete!"));
 
 		// Display the generated assets directory tree
-		await buildReport();
+		console.log("src/content/galleries/");
+		console.log(await tree(contentFolder));
 		console.log(colors.paint('green', `${importMediaTasks.length} media files imported in ${elapsed}ms...`))
 	} catch (error) {
 		console.error(colors.paint('red', "Error during media import:"), error);
@@ -195,7 +196,7 @@ async function scanDirectory(dirPath: string, basePath: string = dirPath): Promi
 		})
 		.map(fileEntry => {
 			const filePath = join(dirPath, fileEntry.name);
-			return parallel(() => extractMetadata(filePath, galery.name));
+			return parallel(() => extractEXIFData(filePath, galery.name));
 		});
 
 	const medias = await Promise.all(fileProcessingPromises);
@@ -219,7 +220,7 @@ async function scanDirectory(dirPath: string, basePath: string = dirPath): Promi
  * @param dirPath 
  * @param prefix 
  */
-async function buildTree(dirPath: string, prefix = ""): Promise<string> {
+async function tree(dirPath: string, prefix = ""): Promise<string> {
 	const entries = await readdir(dirPath, { withFileTypes: true });
 	const directories = entries.filter(entry => entry.isDirectory()).sort((a, b) => a.name.localeCompare(b.name));
 	const files = entries.filter(entry => entry.isFile()).sort((a, b) => a.name.localeCompare(b.name));
@@ -237,7 +238,7 @@ async function buildTree(dirPath: string, prefix = ""): Promise<string> {
 
 		if (item.isDirectory()) {
 			const subDirPath = join(dirPath, item.name);
-			const subTree = await buildTree(subDirPath, prefix + nextPrefix);
+			const subTree = await tree(subDirPath, prefix + nextPrefix);
 			if (subTree) {
 				result += subTree;
 			}
@@ -251,14 +252,14 @@ async function buildTree(dirPath: string, prefix = ""): Promise<string> {
 /**
  * Extract metadata from media file (EXIF data for images)
  */
-async function extractMetadata(filePath: string, defaultLocation = "Unknown Location"): Promise<MediaMetadata> {
+async function extractEXIFData(filePath: string, defaultLocation = "Unknown Location"): Promise<MediaMetadata> {
 	const fileName = basename(filePath);
 	const fileExt = extname(filePath).toLowerCase();
 
 	if (!SUPPORTED_IMAGE_FORMATS.includes(fileExt)) {
 		return {
 			fileName, originalPath: filePath, isoDateTime: new Date().toISOString(), camera: "N/A", lens: "N/A",
-			iso: 0, shutterSpeed: "N/A", aperture: "N/A", focalLength: "N/A", gpsCoords: null, location: defaultLocation
+			iso: 0, shutterSpeed: "N/A", aperture: "N/A", focalLength: "N/A", width: 0, height: 0, gpsCoords: null, location: defaultLocation
 		};
 	}
 
@@ -283,23 +284,56 @@ async function extractMetadata(filePath: string, defaultLocation = "Unknown Loca
 		const aperture = exifData?.FNumber ? `f/${exifData.FNumber}` : "N/A";
 		const focalLength = exifData?.FocalLength ? `${exifData.FocalLength}mm` : "N/A";
 
+		// Prefer EXIF width/height when available; fallback to reading image metadata with sharp
+		let width = 0;
+		let height = 0;
+		let orientationVal: number | string | undefined = exifData?.Orientation as any;
+
+		if (typeof exifData?.ExifImageWidth === 'number' && typeof exifData?.ExifImageHeight === 'number') {
+			width = exifData.ExifImageWidth;
+			height = exifData.ExifImageHeight;
+		} else if (typeof exifData?.PixelXDimension === 'number' && typeof exifData?.PixelYDimension === 'number') {
+			width = exifData.PixelXDimension;
+			height = exifData.PixelYDimension;
+		} else {
+			try {
+				const meta = await sharp(filePath).metadata();
+				width = meta.width ?? 0;
+				height = meta.height ?? 0;
+				orientationVal = orientationVal ?? (meta.orientation as any);
+			} catch { }
+		}
+
+		// If orientation indicates a 90/270-degree rotation, swap width/height to represent post-rotation dimensions
+		const shouldSwap = (() => {
+			if (orientationVal == null) return false;
+			if (typeof orientationVal === 'number') {
+				return [5, 6, 7, 8].includes(orientationVal);
+			}
+			const s = String(orientationVal).toLowerCase();
+			return s.includes('90') || s.includes('270');
+		})();
+		if (shouldSwap) {
+			[width, height] = [height, width];
+		}
+
 		return {
 			fileName, originalPath: filePath, isoDateTime, camera, lens, iso, shutterSpeed,
-			aperture, focalLength, gpsCoords, location
+			aperture, focalLength, width, height, gpsCoords, location
 		};
 	} catch (error) {
 		console.warn(colors.paint('yellow', `Failed to extract EXIF data from ${filePath}:`), error);
 		return {
 			fileName, originalPath: filePath, isoDateTime: new Date().toISOString(), camera: "Unknown Camera", lens: "Unknown Lens",
-			iso: 0, shutterSpeed: "N/A", aperture: "N/A", focalLength: "N/A", gpsCoords: null, location: "Unknown Location"
+			iso: 0, shutterSpeed: "N/A", aperture: "N/A", focalLength: "N/A", width: 0, height: 0, gpsCoords: null, location: "Unknown Location"
 		};
 	}
 }
 
 /**
- * Process media file: create vignette and full-size versions
+ * Import media file: create vignette and full-size versions into the gallery assets
  */
-async function processMediaFile(metadata: MediaMetadata, galleryAssetsDir: string) {
+async function importMediaFile(metadata: MediaMetadata, galleryAssetsDir: string) {
 	const fullSizeDir = join(galleryAssetsDir, "_fullsize");
 	await mkdir(fullSizeDir, { recursive: true });
 
@@ -403,25 +437,6 @@ medias: ${JSON.stringify(gallery.medias, null, 2)}
 `;
 
 	await Bun.write(mdFilePath, mdContent);
-}
-
-/**
- * Display a tree structure of the content directory
- */
-async function buildReport() {
-	console.log(colors.paint('blue', "\nGenerated markdown content:"));
-
-	try {
-		const tree = await buildTree(contentFolder);
-		if (tree) {
-			console.log("src/content/galleries/");
-			console.log(tree);
-		} else {
-			console.log(colors.paint('yellow', "<Empty>"));
-		}
-	} catch (error) {
-		console.log(colors.paint('yellow', "Could not display assets tree:"), error);
-	}
 }
 
 if (import.meta.main) {

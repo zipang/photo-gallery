@@ -1,47 +1,42 @@
 ---
 interface Props {
-	displayName: string;
-	imageUrl: string;
-	border?: number;
-	borderColor?: string;
-	fullSizeUrl?: string;
+	media: Media;
 }
 
 const {
 	displayName,
-	imageUrl,
-	border = 0,
+	vignetteUrl,
+	orientation,
+	width,
+	height,
+	border = 10,
 	borderColor = "var(--color-border)",
-	fullSizeUrl = imageUrl,
-} = Astro.props;
+	fullSizeUrl,
+} = Astro.props.media;
 ---
 
-<div class="vignette">
-	<a href={fullSizeUrl} class="vignette-link" data-lightbox="gallery">
+<a href={fullSizeUrl} class="vignette-link" data-lightbox="gallery">
+	<div class="vignette center-content">
 		<img
-			src={imageUrl}
+			src={vignetteUrl}
 			alt={displayName}
-			class="vignette-image"
+			class={`vignette-image ${orientation}`}
+			width={width}
+			height={height}
 			style={border > 0 ? `border: ${border}px solid ${borderColor}` : ""}
 		/>
 		<div class="vignette-overlay">
 			<span class="vignette-label">{displayName}</span>
 		</div>
-	</a>
-</div>
+	</div>
+</a>
 
 <style>
 	.vignette {
 		position: relative;
+		width: 180px;
+		height: 180px;
 		overflow: hidden;
-		border-radius: var(--border-radius);
-		box-shadow: var(--shadow-sm);
-		transition: var(--transition);
-	}
-
-	.vignette:hover {
-		box-shadow: var(--shadow-md);
-		transform: translateY(-2px);
 	}
 
 	.vignette-link {
@@ -51,9 +46,21 @@ const {
 
 	.vignette-image {
 		width: 100%;
-		height: auto;
+		height: 100%;
+		&.portrait {
+			width: auto;
+		}
+		&.landscape {
+			height: auto;
+		}
+		margin: 0 auto;
 		display: block;
+		box-shadow: var(--shadow-sm);
 		transition: var(--transition);
+
+		&:hover {
+			box-shadow: var(--shadow-md);
+		}
 	}
 
 	.vignette-overlay {

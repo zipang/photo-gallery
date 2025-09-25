@@ -12,6 +12,8 @@ const mediaMetadataSchema = z.object({
 	shutterSpeed: z.string(),
 	aperture: z.string(),
 	focalLength: z.string(),
+	width: z.number(),
+	height: z.number(),
 	gpsCoords: z.union([z.tuple([z.number(), z.number()]), z.null()]),
 	location: z.string(),
 });

@@ -8,6 +8,8 @@ export interface MediaMetadata {
 	shutterSpeed: string;
 	aperture: string;
 	focalLength: string;
+	width: number;
+	height: number;
 	gpsCoords: [number, number] | null;
 	location: string;
 }
